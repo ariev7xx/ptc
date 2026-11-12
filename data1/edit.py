@@ -276,7 +276,7 @@ def save_dat():
         return
     path = input("\nNama file DAT [server_list.dat]: ").strip() or "server_list.dat"
     try:
-        Path(path).write_text(output_data.rstrip() + "\n", encoding="utf-8")
+        Path(path).write_text(output_data.rstrip(), encoding="utf-8")
         print(f"\nDAT berhasil disimpan: {path}")
     except OSError as exc:
         print(f"\nGagal menyimpan DAT: {exc}")
