@@ -300,7 +300,7 @@ def save_json():
     path = input("\nNama file JSON [psiphon_servers.json]: ").strip() or "psiphon_servers.json"
     try:
         Path(path).write_text(
-            json.dumps(payload, indent=4, ensure_ascii=False) + "\n",
+            json.dumps(payload, indent=4, ensure_ascii=False),
             encoding="utf-8"
         )
         print(f"\nJSON berhasil disimpan: {path}")

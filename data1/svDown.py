@@ -1,5 +1,5 @@
-
 import json
+import os
 import zlib
 import urllib.request
 import traceback
@@ -7,7 +7,9 @@ from pathlib import Path
 
 URL = "https://s3.amazonaws.com/psiphon/web/mjr4-p23r-puwl/server_list_compressed"
 
+# Jadikan folder tempat script berada sebagai folder kerja.
 BASE_DIR = Path(__file__).resolve().parent
+os.chdir(BASE_DIR)
 
 COMPRESSED_FILE = BASE_DIR / "server_list_compressed"
 DAT_FILE = BASE_DIR / "server_list.dat"
@@ -18,6 +20,7 @@ def main():
     print("=" * 45)
     print("       PSIPHON SERVER LIST EXTRACTOR")
     print("=" * 45)
+    print(f"\nFolder kerja: {BASE_DIR}")
 
     # 1. Download server list
     print("\n[1/5] Mengunduh server list...")
@@ -31,7 +34,6 @@ def main():
         data = response.read()
 
     COMPRESSED_FILE.write_bytes(data)
-
     print(f"      Berhasil: {len(data):,} bytes")
 
     # 2. Decompress ZLIB
@@ -39,8 +41,10 @@ def main():
 
     decoded = zlib.decompress(data)
     wrapper = json.loads(decoded)
-
     hex_data = wrapper["data"]
+
+    if not isinstance(hex_data, str):
+        raise TypeError("Field 'data' dari server bukan string HEX.")
 
     print("      Berhasil")
 
@@ -48,11 +52,13 @@ def main():
     print("\n[3/5] Menyimpan server_list.dat...")
 
     DAT_FILE.write_text(hex_data, encoding="utf-8")
+    print(f"      Berhasil: {DAT_FILE.name}")
 
     # 4. HEX to UTF-8
     print("\n[4/5] Mengubah HEX menjadi teks...")
 
     text = bytes.fromhex(hex_data).decode("utf-8")
+    print(f"      Berhasil: {len(text):,} karakter")
 
     # 5. Extract JSON objects
     print("\n[5/5] Mengekstrak daftar server...")
@@ -84,8 +90,9 @@ def main():
         encoding="utf-8"
     )
 
-    file = Path(COMPRESSED_FILE)
-    file.unlink()
+    # Hapus file sementara setelah seluruh proses berhasil.
+    if COMPRESSED_FILE.exists():
+        COMPRESSED_FILE.unlink()
 
     print("\n" + "=" * 45)
     print("             PROSES SELESAI")
@@ -95,13 +102,11 @@ def main():
     print(f"Ukuran JSON : {JSON_FILE.stat().st_size:,} bytes")
 
     print("\nFile berhasil dibuat:")
-
     print(f"\n1. {DAT_FILE.name}")
     print(f"2. {JSON_FILE.name}")
 
     print("\nLokasi:")
     print(BASE_DIR)
-
     print("\n" + "=" * 45)
 
 
@@ -113,4 +118,7 @@ if __name__ == "__main__":
         print("\n[ERROR] Proses gagal!")
         traceback.print_exc()
 
-    input("\nTekan ENTER untuk keluar...")
+    try:
+        input("\nTekan ENTER untuk keluar...")
+    except (EOFError, KeyboardInterrupt):
+        pass
