@@ -1,9 +1,13 @@
 
 import sqlite3
 import json
+from pathlib import Path
 
-DB_FILE = "psiphon.db"
-OUTPUT_FILE = "server_list.json"
+WORK_DIR = Path(__file__).resolve().parent
+WORK_DIR.mkdir(parents=True, exist_ok=True)
+
+DB_FILE = WORK_DIR / "psiphon.db"
+JSON_FILE = WORK_DIR / "server_list.json"
 
 try:
     conn = sqlite3.connect(DB_FILE)

@@ -13,7 +13,7 @@ os.chdir(BASE_DIR)
 
 COMPRESSED_FILE = BASE_DIR / "server_list_compressed"
 DAT_FILE = BASE_DIR / "server_list.dat"
-JSON_FILE = BASE_DIR / "psiphon_servers.json"
+JSON_FILE = BASE_DIR / "server_list.json"
 
 
 def main():

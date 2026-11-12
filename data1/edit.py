@@ -188,12 +188,12 @@ def encode_json_to_dat():
     global output_data
 
     print("\nPilih file JSON untuk diencode menjadi DAT.")
-    print("Masukkan path file, atau tekan Enter untuk memakai psiphon_servers.json.")
+    print("Masukkan path file, atau tekan Enter untuk memakai server_list.json.")
 
-    json_path = input("File JSON [psiphon_servers.json]: ").strip()
+    json_path = input("File JSON [server_list.json]: ").strip()
 
     if not json_path:
-        json_path = "psiphon_servers.json"
+        json_path = "server_list.json"
 
     try:
         source = Path(json_path).read_text(encoding="utf-8")
@@ -319,7 +319,7 @@ def save_json():
             return
 
     payload = records[0] if len(records) == 1 else records
-    path = input("\nNama file JSON [psiphon_servers.json]: ").strip() or "psiphon_servers.json"
+    path = input("\nNama file JSON [server_list.json]: ").strip() or "server_list.json"
     try:
         Path(path).write_text(
             json.dumps(payload, indent=4, ensure_ascii=False),
