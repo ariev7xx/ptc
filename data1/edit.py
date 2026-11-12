@@ -4,6 +4,10 @@ import re
 import subprocess
 from pathlib import Path
 
+# Gunakan folder tempat edit.py berada sebagai folder kerja.
+BASE_DIR = Path(__file__).resolve().parent
+os.chdir(BASE_DIR)
+
 APP_TITLE = "HEX / TEXT ENCODER & DECODER"
 input_data = ""
 output_data = ""
@@ -270,7 +274,7 @@ def save_dat():
     if not output_data.strip():
         print("\nOutput kosong.")
         return
-    path = input("\nNama file DAT [decoded.dat]: ").strip() or "decoded.dat"
+    path = input("\nNama file DAT [server_list.dat]: ").strip() or "server_list.dat"
     try:
         Path(path).write_text(output_data.rstrip() + "\n", encoding="utf-8")
         print(f"\nDAT berhasil disimpan: {path}")
@@ -293,7 +297,7 @@ def save_json():
             return
 
     payload = records[0] if len(records) == 1 else records
-    path = input("\nNama file JSON [decoded.json]: ").strip() or "decoded.json"
+    path = input("\nNama file JSON [psiphon_servers.json]: ").strip() or "psiphon_servers.json"
     try:
         Path(path).write_text(
             json.dumps(payload, indent=4, ensure_ascii=False) + "\n",
