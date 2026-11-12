@@ -1,4 +1,20 @@
 #!/bin/bash
 
 cd "$(dirname "$0")/data1" || exit 1
-./ptc --config config.json --serverList server_list.dat
+
+if [ ! -f "server_list.dat" ]; then
+    echo "server_list.dat tidak ditemukan."
+    echo "Menjalankan db2dat.py..."
+
+    python3 db2dat.py
+
+    if [ ! -f "server_list.dat" ]; then
+        echo "Gagal: server_list.dat belum tersedia."
+        exit 1
+    fi
+fi
+
+echo "server_list.dat ditemukan."
+echo "Menjalankan Psiphon..."
+
+exec ./ptc --config config.json --serverList server_list.dat
