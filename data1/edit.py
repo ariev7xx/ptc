@@ -1,392 +1,405 @@
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
 import json
+import os
 import re
+import subprocess
 from pathlib import Path
 
-APP_TITLE = "Hex / Text Encoder & Decoder"
+APP_TITLE = "HEX / TEXT ENCODER & DECODER"
+input_data = ""
+output_data = ""
 
-class HexTool:
-    def __init__(self, root):
-        self.root = root
-        root.title(APP_TITLE)
-        root.geometry("1100x720")
-        root.minsize(820, 560)
 
-        style = ttk.Style()
+def pause():
+    input("\nTekan Enter untuk melanjutkan...")
+
+
+def clear_terminal():
+    """Bersihkan layar terminal pada Android/Termux, Linux, dan Windows."""
+    os.system("cls" if os.name == "nt" else "clear")
+
+
+def menu():
+    print("\n" + "=" * 46)
+    print(f"       {APP_TITLE}")
+    print("=" * 46)
+    print("[1]  Decode HEX -> Text")
+    print("[2]  Encode Text -> HEX")
+    print("[3]  Auto Detect")
+    print("[4]  Format JSON")
+    print("[5]  Buka DAT -> JSON")
+    print("[6]  Encode JSON -> DAT")
+    print("[7]  Buka File")
+    print("[8]  Simpan Output")
+    print("[9]  Simpan DAT")
+    print("[10] Simpan JSON")
+    print("[11] Tukar Input / Output")
+    print("[12] Bersihkan")
+    print("[13] Masukkan Input Manual")
+    print("[14] Lihat Input")
+    print("[15] Lihat Output")
+    print("[16] Salin Output")
+    print("[0]  Keluar")
+    print("=" * 46)
+
+
+def get_multiline():
+    print("\nTempel atau ketik teks.")
+    print("Ketik satu titik (.) pada baris baru untuk selesai:")
+    lines = []
+    while True:
         try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
+            line = input()
+        except EOFError:
+            break
+        if line == ".":
+            break
+        lines.append(line)
+    return "\n".join(lines)
 
-        top = ttk.Frame(root, padding=10)
-        top.pack(fill="x")
-        ttk.Label(top, text=APP_TITLE, font=("Segoe UI", 17, "bold")).pack(side="left")
-        ttk.Label(top, text="HEX ⇄ Text / JSON", foreground="#477").pack(side="right")
 
-        controls = ttk.Frame(root, padding=(10, 0, 10, 8))
-        controls.pack(fill="x")
-        ttk.Button(controls, text="Decode HEX → Text", command=self.decode).pack(side="left", padx=(0, 6))
-        ttk.Button(controls, text="Encode Text → HEX", command=self.encode).pack(side="left", padx=6)
-        ttk.Button(controls, text="Auto Detect", command=self.auto_process).pack(side="left", padx=6)
-        ttk.Button(controls, text="Format JSON", command=self.format_json).pack(side="left", padx=6)
-        ttk.Button(controls, text="Tukar", command=self.swap).pack(side="left", padx=6)
-        ttk.Button(controls, text="Bersihkan", command=self.clear).pack(side="right")
+def decode_line(line):
+    compact = re.sub(r"\s+", "", line)
+    if not compact:
+        return ""
+    if len(compact) % 2:
+        raise ValueError("Jumlah digit HEX ganjil.")
+    if not re.fullmatch(r"[0-9a-fA-F]+", compact):
+        raise ValueError("Input mengandung karakter non-HEX.")
+    return bytes.fromhex(compact).decode("utf-8", errors="replace")
 
-        panes = ttk.Panedwindow(root, orient="horizontal")
-        panes.pack(fill="both", expand=True, padx=10, pady=4)
 
-        left = ttk.Frame(panes, padding=5)
-        right = ttk.Frame(panes, padding=5)
-        panes.add(left, weight=1)
-        panes.add(right, weight=1)
+def decode():
+    global output_data
+    if not input_data:
+        print("\nInput kosong.")
+        return
+    result = []
+    ok = failed = 0
+    for number, line in enumerate(input_data.splitlines(), 1):
+        if not line.strip():
+            result.append("")
+            continue
+        try:
+            result.append(decode_line(line))
+            ok += 1
+        except ValueError as exc:
+            result.append(f"[ERROR baris {number}: {exc}]\n{line}")
+            failed += 1
+    output_data = "\n".join(result)
+    print(f"\nDecode: {ok} berhasil, {failed} gagal.")
 
-        ttk.Label(left, text="INPUT", font=("Segoe UI", 10, "bold")).pack(anchor="w")
-        self.input_text = self.make_text(left)
-        self.input_text.pack(fill="both", expand=True, pady=(5, 0))
 
-        ttk.Label(right, text="OUTPUT", font=("Segoe UI", 10, "bold")).pack(anchor="w")
-        self.output_text = self.make_text(right)
-        self.output_text.pack(fill="both", expand=True, pady=(5, 0))
+def encode():
+    global output_data
+    if not input_data:
+        print("\nInput kosong.")
+        return
+    lines = input_data.splitlines()
+    output_data = "\n".join(line.encode("utf-8").hex() for line in lines)
+    print(f"\nEncode: {len(lines)} baris diproses.")
 
-        filebar = ttk.Frame(root, padding=10)
-        filebar.pack(fill="x")
-        ttk.Button(filebar, text="Buka File", command=self.open_file).pack(side="left", padx=(0, 6))
-        ttk.Button(filebar, text="Buka .DAT → JSON", command=self.open_dat_convert).pack(side="left", padx=6)
-        ttk.Button(filebar, text="Encode JSON → DAT", command=self.encode_json_to_dat).pack(side="left", padx=6)
-        ttk.Button(filebar, text="Simpan Output", command=self.save_output).pack(side="left", padx=6)
-        ttk.Button(filebar, text="Simpan .DAT", command=self.save_dat).pack(side="left", padx=6)
-        ttk.Button(filebar, text="Simpan .JSON", command=self.save_json).pack(side="left", padx=6)
-        ttk.Button(filebar, text="Salin Output", command=self.copy_output).pack(side="left", padx=6)
-        self.status = tk.StringVar(value="Siap.")
-        ttk.Label(filebar, textvariable=self.status).pack(side="right")
 
-    def make_text(self, parent):
-        frame = ttk.Frame(parent)
-        text = tk.Text(frame, wrap="none", undo=True, font=("Consolas", 10))
-        y = ttk.Scrollbar(frame, orient="vertical", command=text.yview)
-        x = ttk.Scrollbar(frame, orient="horizontal", command=text.xview)
-        text.configure(yscrollcommand=y.set, xscrollcommand=x.set)
-        text.grid(row=0, column=0, sticky="nsew")
-        y.grid(row=0, column=1, sticky="ns")
-        x.grid(row=1, column=0, sticky="ew")
-        frame.rowconfigure(0, weight=1)
-        frame.columnconfigure(0, weight=1)
-        # Return the frame while retaining its text widget.
-        frame.text_widget = text
-        return frame
+def auto_process():
+    source_lines = [line.strip() for line in input_data.splitlines() if line.strip()]
+    if not source_lines:
+        print("\nInput kosong.")
+        return
+    is_hex = all(
+        re.fullmatch(r"(?:[0-9a-fA-F]{2}\s*)+", line) is not None
+        for line in source_lines
+    )
+    if is_hex:
+        print("\nFormat terdeteksi: HEX")
+        decode()
+    else:
+        print("\nFormat terdeteksi: TEXT")
+        encode()
 
-    def get_input(self):
-        return self.input_text.text_widget.get("1.0", "end-1c")
 
-    def set_output(self, value):
-        widget = self.output_text.text_widget
-        widget.delete("1.0", "end")
-        widget.insert("1.0", value)
+def parse_dat_records(content):
+    """
+    Decode DAT Psiphon mengikuti extractor asli:
+    HEX seluruh file -> UTF-8 -> ekstrak objek dengan raw_decode.
+    Input JSON/text biasa juga tetap didukung oleh menu Format JSON.
+    """
+    records = []
+    errors = []
 
-    @staticmethod
-    def decode_line(line):
-        # Remove whitespace between hex bytes, but preserve decoded content.
-        compact = re.sub(r"\s+", "", line)
-        if not compact:
-            return ""
-        if len(compact) % 2:
-            raise ValueError("Jumlah digit HEX ganjil.")
-        if not re.fullmatch(r"[0-9a-fA-F]+", compact):
-            raise ValueError("Input mengandung karakter non-HEX.")
-        return bytes.fromhex(compact).decode("utf-8", errors="replace")
-
-    def decode(self):
-        source = self.get_input()
-        lines = source.splitlines()
-        output, ok, failed = [], 0, 0
-        for number, line in enumerate(lines, 1):
-            if not line.strip():
-                output.append("")
-                continue
-            try:
-                output.append(self.decode_line(line))
-                ok += 1
-            except Exception as exc:
-                output.append(f"[ERROR baris {number}: {exc}]\n{line}")
-                failed += 1
-        self.set_output("\n".join(output))
-        self.status.set(f"Decode: {ok} berhasil, {failed} gagal.")
-
-    def encode(self):
-        source = self.get_input()
-        # Encode each input line separately to retain one-record-per-line format.
-        lines = source.splitlines()
-        result = [line.encode("utf-8").hex() for line in lines]
-        self.set_output("\n".join(result))
-        self.status.set(f"Encode: {len(result)} baris diproses.")
-
-    def auto_process(self):
-        source = self.get_input().strip()
+    try:
+        source = content.strip()
         if not source:
-            self.status.set("Input kosong.")
-            return
-        lines = [line.strip() for line in source.splitlines() if line.strip()]
-        looks_hex = bool(lines) and all(
-            re.fullmatch(r"(?:[0-9a-fA-F]{2}\s*)+", line) for line in lines
-        )
-        if looks_hex:
-            self.decode()
+            return records, ["File kosong."]
+
+        compact_hex = re.sub(r"\s+", "", source)
+
+        if compact_hex and re.fullmatch(r"[0-9a-fA-F]+", compact_hex):
+            if len(compact_hex) % 2:
+                return records, ["Jumlah digit HEX ganjil."]
+            text = bytes.fromhex(compact_hex).decode("utf-8")
         else:
-            self.encode()
+            text = source
 
-    @staticmethod
-    def clean_record_prefix(line):
-        """Buang prefix record seperti '0 0 0 0 ' sebelum objek JSON."""
-        return re.sub(r"^\s*\d+(?:\s+\d+){3}\s+(?=[{\[])", "", line, count=1)
+        decoder = json.JSONDecoder()
+        position = 0
 
-    @classmethod
-    def parse_dat_records(cls, content):
-        records = []
-        errors = []
-        for number, raw_line in enumerate(content.splitlines(), 1):
-            line = raw_line.strip()
-            if not line:
-                continue
-
-            # DAT bisa berisi hasil decode atau baris HEX mentah.
-            cleaned = cls.clean_record_prefix(line)
-            if re.fullmatch(r"[0-9a-fA-F\s]+", cleaned) and len(re.sub(r"\s+", "", cleaned)) % 2 == 0:
-                try:
-                    decoded = bytes.fromhex(re.sub(r"\s+", "", cleaned)).decode("utf-8")
-                    cleaned = cls.clean_record_prefix(decoded.strip())
-                except Exception:
-                    pass
-
+        while position < len(text):
+            start = text.find("{", position)
+            if start == -1:
+                break
             try:
-                value = json.loads(cleaned)
-                if isinstance(value, list):
-                    records.extend(value)
-                else:
-                    records.append(value)
-            except json.JSONDecodeError as exc:
-                errors.append(f"Baris {number}: {exc.msg}")
-        return records, errors
+                obj, end = decoder.raw_decode(text, start)
+                if isinstance(obj, dict):
+                    records.append(obj)
+                position = end
+            except json.JSONDecodeError:
+                position = start + 1
 
-    def format_json(self):
-        source = self.get_input()
-        records, errors = self.parse_dat_records(source)
         if not records:
-            messagebox.showerror(
-                "JSON tidak ditemukan",
-                "\n".join(errors[:8]) if errors else "Tidak ditemukan objek JSON yang valid."
-            )
-            self.status.set("Tidak ada JSON valid.")
+            errors.append("Tidak ditemukan objek JSON dalam file.")
+
+    except UnicodeDecodeError as exc:
+        errors.append(f"Data hasil decode bukan UTF-8 valid: {exc}")
+    except ValueError as exc:
+        errors.append(f"Gagal decode HEX: {exc}")
+
+    return records, errors
+
+
+def format_json():
+    global output_data
+    records, errors = parse_dat_records(input_data)
+    if not records:
+        print("\nJSON tidak ditemukan.")
+        for error in errors[:8]:
+            print(error)
+        return
+    payload = records[0] if len(records) == 1 else records
+    output_data = json.dumps(payload, indent=4, ensure_ascii=False)
+    print(f"\nJSON berhasil diformat: {len(records)} record.")
+    if errors:
+        print(f"{len(errors)} baris dilewati.")
+
+
+def encode_json_to_dat():
+    global output_data
+    if not input_data.strip():
+        print("\nInput kosong.")
+        return
+    try:
+        parsed = json.loads(input_data)
+    except json.JSONDecodeError as exc:
+        print(f"\nJSON tidak valid: {exc}")
+        return
+
+    records = parsed if isinstance(parsed, list) else [parsed]
+    if not records:
+        print("\nArray JSON kosong.")
+        return
+
+    dat_lines = []
+    for item in records:
+        compact_json = json.dumps(
+            item, ensure_ascii=False, separators=(",", ":")
+        )
+        dat_text = "0 0 0 0 " + compact_json
+        dat_lines.append(dat_text.encode("utf-8").hex())
+
+    output_data = "\n".join(dat_lines)
+    print(f"\nEncode berhasil: {len(dat_lines)} record.")
+    if input("\nSimpan sebagai DAT? (y/n): ").strip().lower() == "y":
+        save_dat()
+
+
+def open_file():
+    global input_data
+    path = input("\nMasukkan lokasi file: ").strip()
+    if not path:
+        return
+    try:
+        input_data = Path(path).read_text(encoding="utf-8", errors="replace")
+        print(f"\nBerhasil membuka: {Path(path).name}")
+        print(f"Ukuran: {len(input_data)} karakter.")
+    except OSError as exc:
+        print(f"\nGagal membuka file: {exc}")
+
+
+def open_dat_convert():
+    global input_data, output_data
+    path = input("\nMasukkan lokasi file DAT: ").strip()
+    if not path:
+        return
+    try:
+        content = Path(path).read_text(encoding="utf-8", errors="replace")
+        records, errors = parse_dat_records(content)
+        if not records:
+            print("\nKonversi gagal. JSON tidak ditemukan.")
+            for error in errors[:10]:
+                print(error)
             return
 
+        input_data = content
         payload = records[0] if len(records) == 1 else records
-        self.set_output(json.dumps(payload, indent=4, ensure_ascii=False))
-        self.status.set(
-            f"JSON bersih: {len(records)} record; prefix 0000 dihapus"
-            + (f"; {len(errors)} baris dilewati" if errors else "")
-        )
+        output_data = json.dumps(payload, indent=4, ensure_ascii=False)
 
-    def encode_json_to_dat(self):
-        """Encode JSON menjadi format DAT: prefix empat angka + JSON satu baris + HEX."""
-        source = self.get_input().strip()
-        if not source:
-            messagebox.showwarning("Input kosong", "Masukkan atau buka file JSON terlebih dahulu.")
-            return
+        print(f"\nFile: {Path(path).name}")
+        print(f"Berhasil dikonversi: {len(records)} record.")
+        if errors:
+            print(f"Baris dilewati: {len(errors)}")
 
+        if input("\nSimpan hasil sebagai JSON? (y/n): ").strip().lower() == "y":
+            save_json()
+    except OSError as exc:
+        print(f"\nGagal membuka DAT: {exc}")
+
+
+def save_output():
+    if not output_data:
+        print("\nOutput kosong.")
+        return
+    path = input("\nNama/lokasi file output: ").strip()
+    if not path:
+        return
+    try:
+        Path(path).write_text(output_data, encoding="utf-8")
+        print(f"\nBerhasil disimpan: {path}")
+    except OSError as exc:
+        print(f"\nGagal menyimpan: {exc}")
+
+
+def save_dat():
+    if not output_data.strip():
+        print("\nOutput kosong.")
+        return
+    path = input("\nNama file DAT [decoded.dat]: ").strip() or "decoded.dat"
+    try:
+        Path(path).write_text(output_data.rstrip() + "\n", encoding="utf-8")
+        print(f"\nDAT berhasil disimpan: {path}")
+    except OSError as exc:
+        print(f"\nGagal menyimpan DAT: {exc}")
+
+
+def save_json():
+    if not output_data.strip():
+        print("\nOutput kosong.")
+        return
+
+    records, errors = parse_dat_records(output_data)
+    if not records:
         try:
-            parsed = json.loads(source)
-        except json.JSONDecodeError as exc:
-            messagebox.showerror("JSON tidak valid", f"JSON gagal dibaca:\n{exc}")
+            parsed = json.loads(output_data)
+            records = parsed if isinstance(parsed, list) else [parsed]
+        except json.JSONDecodeError:
+            print("\nJSON tidak ditemukan.")
             return
 
-        # Terima satu objek atau array berisi banyak objek.
-        records = parsed if isinstance(parsed, list) else [parsed]
-        if not records:
-            messagebox.showwarning("JSON kosong", "Array JSON tidak berisi record.")
-            return
-
-        dat_lines = []
-        for item in records:
-            compact_json = json.dumps(item, ensure_ascii=False, separators=(",", ":"))
-            dat_text = "0 0 0 0 " + compact_json
-            dat_lines.append(dat_text.encode("utf-8").hex())
-
-        result = "\n".join(dat_lines)
-        self.set_output(result)
-        self.status.set(f"Encode JSON → DAT: {len(dat_lines)} record berhasil.")
-
-        save_path = filedialog.asksaveasfilename(
-            title="Simpan hasil encode sebagai DAT",
-            defaultextension=".dat",
-            initialfile="encoded.dat",
-            filetypes=[("DAT", "*.dat"), ("File teks", "*.txt"), ("Semua file", "*.*")]
+    payload = records[0] if len(records) == 1 else records
+    path = input("\nNama file JSON [decoded.json]: ").strip() or "decoded.json"
+    try:
+        Path(path).write_text(
+            json.dumps(payload, indent=4, ensure_ascii=False) + "\n",
+            encoding="utf-8"
         )
-        if save_path:
+        print(f"\nJSON berhasil disimpan: {path}")
+        print(f"Jumlah record: {len(records)}")
+        if errors:
+            print(f"{len(errors)} baris dilewati.")
+    except OSError as exc:
+        print(f"\nGagal menyimpan JSON: {exc}")
+
+
+def swap():
+    global input_data, output_data
+    input_data, output_data = output_data, input_data
+    print("\nInput dan output ditukar.")
+
+
+def clear():
+    global input_data, output_data
+    input_data = ""
+    output_data = ""
+    print("\nInput dan output dibersihkan.")
+
+
+def show_input():
+    print("\n" + "=" * 46)
+    print("INPUT")
+    print("=" * 46)
+    print(input_data if input_data else "(Kosong)")
+
+
+def show_output():
+    print("\n" + "=" * 46)
+    print("OUTPUT")
+    print("=" * 46)
+    print(output_data if output_data else "(Kosong)")
+
+
+def copy_output():
+    if not output_data:
+        print("\nOutput kosong.")
+        return
+    try:
+        subprocess.run(
+            ["termux-clipboard-set"],
+            input=output_data,
+            text=True,
+            check=True
+        )
+        print("\nOutput berhasil disalin ke clipboard.")
+    except FileNotFoundError:
+        print("\ntermux-clipboard-set tidak ditemukan.")
+        print("Install paket termux-api dan aplikasi Termux:API.")
+    except subprocess.CalledProcessError as exc:
+        print(f"\nGagal menyalin output: {exc}")
+
+
+def main():
+    global input_data
+    actions = {
+        "1": decode,
+        "2": encode,
+        "3": auto_process,
+        "4": format_json,
+        "5": open_dat_convert,
+        "6": encode_json_to_dat,
+        "7": open_file,
+        "8": save_output,
+        "9": save_dat,
+        "10": save_json,
+        "11": swap,
+        "12": clear,
+        "14": show_input,
+        "15": show_output,
+        "16": copy_output,
+    }
+
+    while True:
+        clear_terminal()
+        menu()
+        try:
+            choice = input("Pilih menu: ").strip()
+            if choice == "0":
+                print("\nKeluar.")
+                break
+            elif choice == "13":
+                input_data = get_multiline()
+                print(f"\nInput diterima: {len(input_data)} karakter.")
+            elif choice in actions:
+                actions[choice]()
+            else:
+                print("\nPilihan tidak valid.")
+            pause()
+        except KeyboardInterrupt:
+            print("\n\nDibatalkan.")
             try:
-                Path(save_path).write_text(result + "\n", encoding="utf-8")
-                self.status.set(f"{len(dat_lines)} record berhasil disimpan ke {Path(save_path).name}")
-            except Exception as exc:
-                messagebox.showerror("Gagal menyimpan DAT", str(exc))
+                pause()
+            except (KeyboardInterrupt, EOFError):
+                print()
+                break
+        except EOFError:
+            print("\nInput berakhir. Keluar.")
+            break
 
-    def open_dat_convert(self):
-        path = filedialog.askopenfilename(
-            title="Buka file DAT untuk dikonversi ke JSON",
-            filetypes=[("File DAT", "*.dat"), ("Semua file", "*.*")]
-        )
-        if not path:
-            return
-        try:
-            content = Path(path).read_text(encoding="utf-8", errors="replace")
-            records, errors = self.parse_dat_records(content)
-            if not records:
-                messagebox.showerror(
-                    "Konversi gagal",
-                    "\n".join(errors[:10]) if errors else "Tidak ditemukan data JSON di file DAT."
-                )
-                self.status.set("DAT tidak berisi JSON yang dikenali.")
-                return
-
-            payload = records[0] if len(records) == 1 else records
-            pretty = json.dumps(payload, indent=4, ensure_ascii=False)
-            self.input_text.text_widget.delete("1.0", "end")
-            self.input_text.text_widget.insert("1.0", content)
-            self.set_output(pretty)
-            self.status.set(
-                f"{Path(path).name}: {len(records)} record dikonversi; prefix 0000 dibersihkan"
-                + (f"; {len(errors)} baris dilewati" if errors else "")
-            )
-
-            # Tawarkan penyimpanan langsung sebagai file .json.
-            save_path = filedialog.asksaveasfilename(
-                title="Simpan hasil konversi JSON",
-                defaultextension=".json",
-                initialfile=Path(path).stem + ".json",
-                filetypes=[("JSON", "*.json"), ("Semua file", "*.*")]
-            )
-            if save_path:
-                Path(save_path).write_text(pretty + "\n", encoding="utf-8")
-                self.status.set(f"Berhasil: {len(records)} record → {Path(save_path).name}")
-            if errors:
-                messagebox.showwarning(
-                    "Sebagian baris dilewati",
-                    f"{len(records)} record berhasil dikonversi.\n"
-                    f"{len(errors)} baris tidak valid dilewati."
-                )
-        except Exception as exc:
-            messagebox.showerror("Gagal membuka DAT", str(exc))
-
-    def swap(self):
-        a = self.get_input()
-        b = self.output_text.text_widget.get("1.0", "end-1c")
-        self.input_text.text_widget.delete("1.0", "end")
-        self.input_text.text_widget.insert("1.0", b)
-        self.set_output(a)
-        self.status.set("Input dan output ditukar.")
-
-    def clear(self):
-        self.input_text.text_widget.delete("1.0", "end")
-        self.output_text.text_widget.delete("1.0", "end")
-        self.status.set("Dibersihkan.")
-
-    def open_file(self):
-        path = filedialog.askopenfilename(
-            title="Pilih file teks",
-            filetypes=[("File teks", "*.txt *.hex *.json"), ("Semua file", "*.*")]
-        )
-        if not path:
-            return
-        try:
-            content = Path(path).read_text(encoding="utf-8", errors="replace")
-            self.input_text.text_widget.delete("1.0", "end")
-            self.input_text.text_widget.insert("1.0", content)
-            self.status.set(f"Dibuka: {Path(path).name}")
-        except Exception as exc:
-            messagebox.showerror("Gagal membuka file", str(exc))
-
-    def save_output(self):
-        content = self.output_text.text_widget.get("1.0", "end-1c")
-        if not content:
-            messagebox.showwarning("Output kosong", "Tidak ada hasil untuk disimpan.")
-            return
-        path = filedialog.asksaveasfilename(
-            title="Simpan hasil",
-            defaultextension=".txt",
-            filetypes=[("File teks", "*.txt"), ("File JSON", "*.json"), ("Semua file", "*.*")]
-        )
-        if not path:
-            return
-        try:
-            Path(path).write_text(content, encoding="utf-8")
-            self.status.set(f"Tersimpan: {Path(path).name}")
-        except Exception as exc:
-            messagebox.showerror("Gagal menyimpan file", str(exc))
-
-    def save_dat(self):
-        """Simpan hasil decode sebagai teks .dat tanpa mengubah isinya."""
-        content = self.output_text.text_widget.get("1.0", "end-1c")
-        if not content.strip():
-            messagebox.showwarning("Output kosong", "Decode HEX terlebih dahulu.")
-            return
-        path = filedialog.asksaveasfilename(
-            title="Simpan hasil decode sebagai DAT",
-            defaultextension=".dat",
-            initialfile="decoded.dat",
-            filetypes=[("DAT", "*.dat"), ("File teks", "*.txt"), ("Semua file", "*.*")]
-        )
-        if not path:
-            return
-        try:
-            Path(path).write_text(content.rstrip() + "\n", encoding="utf-8")
-            self.status.set(f"File DAT tersimpan: {Path(path).name}")
-        except Exception as exc:
-            messagebox.showerror("Gagal menyimpan DAT", str(exc))
-
-    def save_json(self):
-        """Simpan hasil sebagai JSON bersih tanpa prefix angka record."""
-        content = self.output_text.text_widget.get("1.0", "end-1c")
-        if not content.strip():
-            content = self.get_input()
-        records, errors = self.parse_dat_records(content)
-        if not records:
-            messagebox.showerror(
-                "JSON tidak ditemukan",
-                "\n".join(errors[:8]) if errors else "Tidak ditemukan objek JSON."
-            )
-            return
-
-        payload = records[0] if len(records) == 1 else records
-        path = filedialog.asksaveasfilename(
-            title="Simpan hasil decode sebagai JSON",
-            defaultextension=".json",
-            initialfile="decoded.json",
-            filetypes=[("JSON", "*.json"), ("Semua file", "*.*")]
-        )
-        if not path:
-            return
-        try:
-            Path(path).write_text(
-                json.dumps(payload, indent=4, ensure_ascii=False) + "\n",
-                encoding="utf-8"
-            )
-            self.status.set(
-                f"JSON tersimpan: {Path(path).name} ({len(records)} record; prefix dibersihkan)"
-            )
-            if errors:
-                messagebox.showwarning(
-                    "Sebagian baris dilewati",
-                    f"{len(records)} record berhasil disimpan.\n"
-                    f"{len(errors)} baris tidak valid dilewati."
-                )
-        except Exception as exc:
-            messagebox.showerror("Gagal menyimpan JSON", str(exc))
-
-    def copy_output(self):
-        content = self.output_text.text_widget.get("1.0", "end-1c")
-        self.root.clipboard_clear()
-        self.root.clipboard_append(content)
-        self.status.set("Output disalin ke clipboard.")
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = HexTool(root)
-    root.mainloop()
+    main()
