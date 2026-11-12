@@ -186,33 +186,55 @@ def format_json():
 
 def encode_json_to_dat():
     global output_data
-    if not input_data.strip():
-        print("\nInput kosong.")
-        return
+
+    print("\nPilih file JSON untuk diencode menjadi DAT.")
+    print("Masukkan path file, atau tekan Enter untuk memakai psiphon_servers.json.")
+
+    json_path = input("File JSON [psiphon_servers.json]: ").strip()
+
+    if not json_path:
+        json_path = "psiphon_servers.json"
+
     try:
-        parsed = json.loads(input_data)
+        source = Path(json_path).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        print(f"\nFile tidak ditemukan: {json_path}")
+        return
+    except OSError as exc:
+        print(f"\nGagal membaca file: {exc}")
+        return
+
+    try:
+        parsed = json.loads(source)
     except json.JSONDecodeError as exc:
         print(f"\nJSON tidak valid: {exc}")
         return
 
     records = parsed if isinstance(parsed, list) else [parsed]
+
     if not records:
         print("\nArray JSON kosong.")
         return
 
     dat_lines = []
+
     for item in records:
         compact_json = json.dumps(
-            item, ensure_ascii=False, separators=(",", ":")
+            item,
+            ensure_ascii=False,
+            separators=(",", ":")
         )
+
         dat_text = "0 0 0 0 " + compact_json
         dat_lines.append(dat_text.encode("utf-8").hex())
 
     output_data = "\n".join(dat_lines)
-    print(f"\nEncode berhasil: {len(dat_lines)} record.")
+
+    print(f"\nFile JSON : {json_path}")
+    print(f"Encode berhasil: {len(dat_lines)} record.")
+
     if input("\nSimpan sebagai DAT? (y/n): ").strip().lower() == "y":
         save_dat()
-
 
 def open_file():
     global input_data
@@ -229,7 +251,7 @@ def open_file():
 
 def open_dat_convert():
     global input_data, output_data
-    path = input("\nMasukkan lokasi file DAT: ").strip()
+    path = input("\nMasukkan lokasi file DAT [server_list.dat]:").strip()  or "server_list.dat"
     if not path:
         return
     try:
